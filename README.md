@@ -1,3 +1,7 @@
+This is just Eris but up-to date
+
+I try to merge most PRs from abalabahaha/eris, please make a pull and it will most likely be merged
+
 Eris [![NPM version](https://img.shields.io/npm/v/eris.svg?style=flat-square&color=informational)](https://npmjs.com/package/eris)
 ====
 
