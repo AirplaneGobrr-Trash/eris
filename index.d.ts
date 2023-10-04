@@ -51,7 +51,7 @@ declare namespace Eris {
 
   // Channel
   type AnyChannel = AnyGuildChannel | PrivateChannel;
-  type AnyGuildChannel = GuildTextableChannel | AnyVoiceChannel | CategoryChannel | StoreChannel;
+  type AnyGuildChannel = GuildTextableChannel | AnyVoiceChannel | CategoryChannel | StoreChannel | ForumChannel;
   type AnyThreadChannel = NewsThreadChannel | PrivateThreadChannel | PublicThreadChannel | ThreadChannel;
   type AnyVoiceChannel = TextVoiceChannel | StageChannel;
   type GuildTextableChannel = TextChannel | TextVoiceChannel | NewsChannel;
@@ -154,8 +154,11 @@ declare namespace Eris {
   type StickerTypes = Constants["StickerTypes"][keyof Constants["StickerTypes"]];
   type StickerFormats = Constants["StickerFormats"][keyof Constants["StickerFormats"]];
 
-  // Thread
+  // Thread/Forum
   type AutoArchiveDuration = 60 | 1440 | 4320 | 10080;
+  type ChannelFlags = Constants["ChannelFlags"][keyof Constants["ChannelFlags"]];
+  type DefaultSortOrderTypes = Constants["DefaultSortOrderTypes"][keyof Constants["DefaultSortOrderTypes"]];
+  type DefaultForumLayoutTypes = Constants["DefaultForumLayoutTypes"][keyof Constants["DefaultForumLayoutTypes"]];
 
   // User
   type PremiumTypes = Constants["PremiumTypes"][keyof Constants["PremiumTypes"]];
@@ -275,7 +278,11 @@ declare namespace Eris {
     parentID?: string;
   }
   interface CreateChannelOptions {
+    availableTags: ForumTag[];
     bitrate?: number;
+    defaultAutoArchiveDuration?: AutoArchiveDuration;
+    defaultReactionEmoji: DefaultReactionEmoji;
+    defaultSortOrder: DefaultSortOrderTypes;
     nsfw?: boolean;
     parentID?: string;
     permissionOverwrites?: Overwrite[];
@@ -289,6 +296,8 @@ declare namespace Eris {
     archived?: boolean;
     autoArchiveDuration?: AutoArchiveDuration;
     defaultAutoArchiveDuration?: AutoArchiveDuration;
+    defaultForumLayout: DefaultForumLayoutTypes;
+    defaultRateLimitPerUser: number;
     icon?: string;
     invitable?: boolean;
     locked?: boolean;
@@ -585,6 +594,14 @@ declare namespace Eris {
     ringing: string[];
     unavailable: boolean;
   }
+  interface OldForumChannel extends OldGuildChannel {
+    availableTags: ForumTag[],
+    defaultAutoArchiveDuration: AutoArchiveDuration,
+    defaultForumLayout: DefaultForumLayoutTypes,
+    defaultReactionEmoji: DefaultReactionEmoji,
+    defaultSortOrder: DefaultSortOrderTypes,
+    defaultThreadRateLimitPerUser: number,
+  }
   interface OldGroupChannel {
     name: string;
     ownerID: string;
@@ -731,7 +748,7 @@ declare namespace Eris {
     channelPinUpdate: [channel: TextableChannel, timestamp: number, oldTimestamp: number];
     channelRecipientAdd: [channel: GroupChannel, user: User];
     channelRecipientRemove: [channel: GroupChannel, user: User];
-    channelUpdate: [channel: AnyGuildChannel, oldChannel: OldGuildChannel | OldGuildTextChannel | OldTextVoiceChannel]
+    channelUpdate: [channel: AnyGuildChannel, oldChannel: OldGuildChannel | OldGuildTextChannel | OldTextVoiceChannel | OldForumChannel]
     | [channel: GroupChannel, oldChannel: OldGroupChannel];
     connect: [id: number];
     debug: [message: string, id?: number];
@@ -1472,10 +1489,24 @@ declare namespace Eris {
   interface CreateThreadOptions {
     autoArchiveDuration: AutoArchiveDuration;
     name: string;
+    rateLimitPerUser: number;
+  }
+  interface CreateForumThreadOptions extends CreateThreadOptions {
+    appliedTags: string[];
+    message: Omit<AdvancedMessageContent, "messageReference" | "messageReferenceID" | "tts"> & FileContent[];
   }
   interface CreateThreadWithoutMessageOptions<T = AnyThreadChannel["type"]> extends CreateThreadOptions {
     invitable: T extends PrivateThreadChannel["type"] ? boolean : never;
     type: T;
+  }
+  interface ForumTag extends DefaultReactionEmoji {
+    id: string;
+    name: string;
+    moderated: boolean;
+  }
+  interface DefaultReactionEmoji {
+    emoji_id?: string;
+    emoji_name?: string;
   }
   interface GetArchivedThreadsOptions {
     before?: Date;
@@ -1737,6 +1768,10 @@ declare namespace Eris {
       DANGER:    4;
       LINK:      5;
     };
+    ChannelFlags: {
+      PINNED: 1,
+      REQUIRE_TAG: 16
+    },
     ChannelTypes: {
       GUILD_TEXT:           0;
       DM:                   1;
@@ -1752,6 +1787,7 @@ declare namespace Eris {
       GUILD_STAGE_VOICE:    13;
       /** @deprecated */
       GUILD_STAGE:          13;
+      GUILD_FORUM: 15;
     };
     ComponentTypes: {
       ACTION_ROW:  1;
@@ -1766,6 +1802,15 @@ declare namespace Eris {
     DefaultMessageNotificationLevels: {
       ALL_MESSAGES:  0;
       ONLY_MENTIONS: 1;
+    };
+    DefaultSortOrderTypes: {
+      LATEST_ACTIVITY: 0,
+      CREATION_DATE: 1
+    };
+    DefaultForumLayoutTypes: {
+      NOT_SET: 0,
+      LIST_VIEW: 1,
+      GALLERY_VIEW: 2
     };
     ExplicitContentFilterLevels: {
       DISABLED:              0;
@@ -2388,7 +2433,7 @@ declare namespace Eris {
     createChannel(
       guildID: string,
       name: string,
-      type: Constants["ChannelTypes"]["GUILD_STAGE"],
+      type: Constants["ChannelTypes"]["GUILD_FORUM"],
       options?: CreateChannelOptions
     ): Promise<StageChannel>;
     createChannel(
@@ -2441,10 +2486,16 @@ declare namespace Eris {
     createChannel(
       guildID: string,
       name: string,
-      type: Constants["ChannelTypes"]["GUILD_STAGE"],
+      type: Constants["ChannelTypes"]["GUILD_STAGE_VOICE"],
       reason?: string,
       options?: CreateChannelOptions | string
     ): Promise<StageChannel>;
+    createChannel(
+      guildID: string,
+      name: string,
+      type: Constants["ChannelTypes"]["GUILD_FORUM"],
+      options?: CreateChannelOptions
+    ): Promise<ForumChannel>;
     /** @deprecated */
     createChannel(
       guildID: string,
@@ -2880,6 +2931,47 @@ declare namespace Eris {
     mfaEnabled: boolean;
     premiumType: PremiumTypes;
     verified: boolean;
+  }
+
+  export class ForumChannel extends GuildChannel {
+    availableTags: ForumTag[];
+    defaultAutoArchiveDuration: AutoArchiveDuration;
+    defaultForumLayout: DefaultForumLayoutTypes;
+    defaultReactionEmoji: DefaultReactionEmoji;
+    defaultSortOrder: DefaultSortOrderTypes;
+    defaultThreadRateLimitPerUser: number;
+    flags: number;
+    lastMessageID: string;
+    rateLimitPerUser: number;
+    topic?: string;
+    addMessageReaction(messageID: string, reaction: string): Promise<void>;
+    createThread(options: CreateForumThreadOptions): Promise<PublicThreadChannel>;
+    createWebhook(options: { name: string; avatar?: string | null }, reason?: string): Promise<Webhook>;
+    deleteMessage(messageID: string, reason?: string): Promise<void>;
+    deleteMessages(messageIDs: string[], reason?: string): Promise<void>;
+    edit(options: Omit<EditChannelOptions, "icon" | "ownerID">, reason?: string): Promise<this>;
+    editMessage(messageID: string, content: MessageContentEdit): Promise<Message<this>>;
+    getArchivedThreads(type: "private", options?: GetArchivedThreadsOptions): Promise<ListedChannelThreads<PrivateThreadChannel>>;
+    getArchivedThreads(type: "public", options?: GetArchivedThreadsOptions): Promise<ListedChannelThreads<PublicThreadChannel>>;
+    getInvites(): Promise<(Invite<"withMetadata", this>)[]>;
+    getJoinedPrivateArchivedThreads(options: GetArchivedThreadsOptions): Promise<ListedChannelThreads<PrivateThreadChannel>>;
+    getMessage(messageID: string): Promise<Message<this>>;
+    getMessageReaction(messageID: string, reaction: string, options?: GetMessageReactionOptions): Promise<User[]>;
+    /** @deprecated */
+    getMessageReaction(messageID: string, reaction: string, limit?: number, before?: string, after?: string): Promise<User[]>;
+    getMessages(options?: GetMessagesOptions): Promise<Message<this>[]>;
+    /** @deprecated */
+    getMessages(limit?: number, before?: string, after?: string, around?: string): Promise<Message<this>[]>;
+    getPins(): Promise<Message<this>[]>;
+    getWebhooks(): Promise<Webhook[]>;
+    pinMessage(messageID: string): Promise<void>;
+    purge(options: PurgeChannelOptions): Promise<number>;
+    removeMessageReaction(messageID: string, reaction: string, userID?: string): Promise<void>;
+    removeMessageReactionEmoji(messageID: string, reaction: string): Promise<void>;
+    removeMessageReactions(messageID: string): Promise<void>;
+    sendTyping(): Promise<void>;
+    unpinMessage(messageID: string): Promise<void>;
+    unsendMessage(messageID: string): Promise<void>;
   }
 
   export class GroupChannel extends PrivateChannel {
@@ -3723,6 +3815,8 @@ declare namespace Eris {
   }
 
   export class ThreadChannel extends GuildChannel implements ThreadTextable {
+    appliedTags: string[];
+    flags: number;
     lastMessageID: string;
     lastPinTimestamp?: number;
     member?: ThreadMember;
